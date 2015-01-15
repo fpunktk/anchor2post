@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+</head>
+<body>
+<!-- https://github.com/fpunktk/anchor2post -->
+<script type="text/javascript">
+var keyvals = document.URL.toString().split("#")[1]; // TODO: what happens if there is no # in the url?
+var keyval_regex = /([^&=]+)=?([^&]*)/g;
+var hist_length_regex = /([^ ]+)_history.length=(\d+)/g;
+var tmp;
+var input;
+var anchorhash = "";
+var hash_characters = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+var action_set = "false";
+var auto_submit = "true";
+var anchorhash_found = "false";
+var form = document.createElement("form");
+form.setAttribute("method","post");
+
+// calculate a hash from the anchor, not very unique or cryptographically secure, just transform two characters from keyvals to one character from hash_characters
+for ( var i = 1; i < keyvals.length; i+=2 ) {
+    anchorhash += hash_characters.substr( (keyvals.charCodeAt(i-1) + keyvals.charCodeAt(i)) % hash_characters.length, 1 );
+}
+
+// process the anchor-string, extract the url, favicon and the data to post to the url
+while ( tmp = keyval_regex.exec(keyvals) ) {
+    if ( decodeURIComponent(tmp[1]) == "anchor2posturl" ) {
+        form.setAttribute("action", decodeURIComponent(tmp[2]));
+        action_set = "true";
+    } else if ( decodeURIComponent(tmp[1]) == "anchor2postfavicon" ) {
+        var favicon = document.createElement("link");
+        favicon.setAttribute("rel", "icon");
+        favicon.setAttribute("href", decodeURIComponent(tmp[2]));
+        //favicon.setAttribute("type", "image/png"); // nobody knows the content type
+        document.getElementsByTagName("head")[0].appendChild(favicon);
+    } else {
+        input = document.createElement("input");
+        input.setAttribute("name", decodeURIComponent(tmp[1]));
+        input.setAttribute("value", decodeURIComponent(tmp[2]));
+        form.appendChild(input);
+    }
+}
+
+// set or read a cookie to determine whether to submit the form automatically or not; reason: if you go back to this site you most likely don't want to be automatically forwarded again
+if ( navigator.cookieEnabled == true ) {
+    //alert("cookies allowed \n" + auto_submit + "\n" + document.cookie.replace(/ /g, "\n")); // debug
+    while ( tmp = hist_length_regex.exec(document.cookie) ) {
+        if ( tmp[1] == anchorhash ) {
+            // a cookie for this anchorhash is found, so it has already been submitted
+            // do not auto submit the form if the saved history length is different from the actual history length and from 1 (which means this is an new tab)
+            if ( history.length != 1 && history.length > tmp[2] ) {
+                auto_submit = "false";
+            }
+            anchorhash_found = "true";
+            //alert(history.length + " " + tmp[2] + " " + auto_submit); // debug
+            break;
+        }
+    }
+    
+    // add this anchorhash to the cookie if it wasn't found
+    if ( anchorhash_found === "false" ) {
+        document.cookie = anchorhash + "_history.length=" + history.length;
+    }
+    
+    // update the cookies expiration time
+    // TODO: I think this is not working as expected, perhaps try document.cookie +=
+    var expiredate = new Date();
+    expiredate.setTime(expiredate.getTime() + (24 * 60 * 60 * 1000)); // 24 hours
+    document.cookie = "expires=" + expiredate.toGMTString();
+} else {
+    // no cookie support, don't submit the form if there is a history
+    // TODO: better would be: if there is no forward history: submit the form; but I don't know how to find out whether there is a forward history without using cookies
+    if ( history.length != 1 ) {
+        auto_submit = "false";
+    }
+}
+
+if ( action_set === "true" ) {
+    if ( auto_submit === "true" ) {
+        form.setAttribute("style","display: none;");
+        document.body.appendChild(form);
+        form.submit();
+    } else {
+        // don't auto-submit the form, display a button
+        input = document.createElement("input");
+        input.setAttribute("type", "submit");
+        input.setAttribute("value", "submit form");
+        input.setAttribute("id", "id-form-submit-button");
+        form.appendChild(input);
+        document.body.appendChild(form);
+        document.getElementById("id-form-submit-button").focus();
+    }
+} else {
+    document.write("<h1>anchor2posturl has not been set, no request was sent</h1>");
+}
+</script>
+
+<noscript>
+<h1>please enable javascript</h1>
+<noscript>
+
+</body>
+</html>
